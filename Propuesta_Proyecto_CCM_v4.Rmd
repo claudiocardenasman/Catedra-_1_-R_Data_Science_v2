@@ -1,0 +1,922 @@
+
+---
+title: |
+  Modelo de Pesquisa Automatizada del Riesgo Cardiovascular mediante Inteligencia
+  Artificial en la Red APS de Quellón, provincia de Chiloé
+author: "Claudio Cárdenas M."
+output:
+  pdf_document:
+    latex_engine: xelatex
+    number_sections: true    
+    fig_caption:    true    
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r warning=FALSE}
+## Carga de paquetes de analisis
+
+## update.packages(ask = FALSE)  ##Actualizar todos los paquetes desde CRAN
+
+if (!requireNamespace("pacman", quietly = TRUE)) {
+  install.packages("pacman")
+}
+
+pacman::p_load(dplyr, 
+               tinytex, 
+               latexpdf,
+               readxl, 
+               purrr, 
+               ggplot2, 
+               skimr, 
+               GGally, 
+               tidyr,
+               mice, 
+               patchwork,
+               rstatix, 
+               writexl, 
+               caret, 
+               rlang, 
+               fastmap, 
+               ROCR, 
+               MASS, 
+               gridExtra,
+               pROC, 
+               gbm, 
+               xgboost, 
+               funModeling,
+               broom)
+
+```
+
+
+# ETAPA 1: Comprensión del negocio.
+
+
+## Identificación de los objetivos del negocio y situación actual.
+
+La comuna de Quellón, situada en la provincia de Chiloé, enfrenta desafíos significativos en salud pública debido a la alta prevalencia de factores de riesgo cardiovascular (FRCV) en su población. Estudios realizados en diversas regiones de Chile han evidenciado tasas elevadas de hipertensión arterial, dislipidemias, obesidad y diabetes mellitus tipo 2 . Aunque no se dispone de datos específicos para Quellón, es razonable inferir que estas condiciones también afectan a su población, considerando las similitudes sociodemográficas y epidemiológicas con otras zonas del país.
+
+## Objetivos del proyecto de *Data Science*.
+
+Entrenar un modelo predictivo basado en machine learning en la Atención Primaria de Salud (APS) de Quellón permitiría:
+
+-   **Mejorar la focalización de intervenciones preventivas**: Al identificar a individuos con alto riesgo cardiovascular, se pueden dirigir recursos y programas de prevención de manera más eficiente. 
+
+-   **Priorizar controles de salud cardiovascular**: Facilitando la programación de controles y seguimientos para aquellos pacientes con mayor probabilidad de desarrollar enfermedades cardiovasculares.
+
+-   **Reducir eventos coronarios mayores y hospitalizaciones evitables**: La detección temprana y la intervención oportuna pueden disminuir la incidencia de eventos adversos graves .
+
+-   **Optimizar el uso de recursos en la red APS local**: Permitiendo una asignación más efectiva de los recursos disponibles, mejorando la eficiencia del sistema de salud.
+
+La aplicación de algoritmos de machine learning en el ámbito de la salud ha demostrado ser eficaz en la predicción de riesgos y en la toma de decisiones clínicas . Estos modelos pueden analizar grandes volúmenes de datos y detectar patrones complejos que podrían pasar desapercibidos mediante métodos tradicionales.
+
+En el contexto de Quellón, la adopción de esta tecnología podría representar un avance significativo en la gestión de la salud pública, contribuyendo a la reducción de la carga de enfermedades cardiovasculares y mejorando la calidad de vida de sus habitantes.
+
+
+## Planificación del proyecto de *Data Science*.
+
+
+### Objetivo general del estudio:
+
+Entrenar un modelo predictivo basado en algoritmos de machine learning para la identificación temprana de personas en riesgo cardiovascular, utilizando datos clínicos de la población usuaria de la Atención Primaria de Salud en la comuna de Quellón, con el propósito de optimizar la focalización de intervenciones preventivas y mejorar la gestión del riesgo en salud cardiovascular.
+
+### Algoritmo de clasificación para el aprendizaje automático en el estudio.
+
+La siguiente figura es un mapa conceptual de los principales algoritmos de clasificación supervisada, partiendo de un nodo central (“Algoritmos de Clasificación Supervisada”) y desplegando ramas coloreadas para cada técnica. Cada rama está estructurada en tres secciones:
+
+- Definición (qué criterio o función utiliza el algoritmo para clasificar),
+
+- Ventajas (fortalezas en términos de interpretabilidad, velocidad o robustez),
+
+- Desventajas (limitaciones relacionadas con supuestos, sensibilidad a hiperparámetros, coste computacional o infraestructuras de datos).
+
+Las técnicas incluidas abarcan desde modelos lineales simples (Regresión Logística, Lasso/Ridge) hasta métodos de ensamble (Random Forest, Boosting) y enfoques no lineales o basados en vecinos (SVM, k-NN), así como Redes Neuronales y Naive Bayes. Este esquema ofrece una visión de conjunto que permite, de modo ágil y comparativo, seleccionar la estrategia más adecuada para un proyecto de modelación predictiva—por ejemplo, en la estimación de riesgo cardiovascular—según el volumen de datos, la necesidad de explicación clínica y los recursos computacionales disponibles.
+
+
+```{r echo=FALSE, out.width="90%", fig.align="center", fig.cap="Comparación de algoritmos de Machine Learning, para clasificación supervisada (Fuente: <https://doi.org/10.1186/s12911-019-1004-8>)"}
+knitr::include_graphics("alg.ml_cs.png")
+
+
+```
+
+### Metodologia para el proceso de *Data Science*.
+
+Para el desarrollo de este proyecto se ha empleado, y se empleará, la metodología CRISP-DM, la cual es de libre distribución y compatible con cualquier conjunto de herramientas de minería de datos. Dicha metodología estructura el ciclo de vida de un proyecto de minería de datos en seis fases interactivas e iterativas:
+
+- Comprensión del negocio: definición de los objetivos, evaluación de la situación actual y elaboración del plan de trabajo.
+
+- Comprensión de los datos: identificación y recopilación de las fuentes de datos disponibles.
+
+- Preparación de los datos: limpieza, transformación e integración de los datos para su análisis.
+
+- Modelado: aplicación de técnicas de análisis y generación de modelos que respondan a los objetivos del negocio, produciendo información nueva y relevante.
+
+- Evaluación: análisis de los resultados obtenidos, valoración de la calidad y validación de los modelos desarrollados.
+
+- Despliegue: planificación de la implementación y distribución de los resultados.
+
+Las fases de evaluación y despliegue no se abordaran en el presente estudio, dado que excede el alcance del Magíster por las limitaciones de tiempo, recursos humanos y presupuesto. No obstante, se prevé su ejecución eventual en el caso de que sea necesario implementar en producción el modelo predictivo que demuestre mejor rendimiento en este trabajo.
+
+```{r echo=FALSE, out.width="70%", fig.align="center", fig.cap="Metodología CRISP-DM (Cross Industry Standard Process for Data Mining) <https://healthdataminer.com/data-mining/crisp-dm-una-metodologia-para-mineria-de-datos-en-salud/>"}
+knitr::include_graphics("CRISP-DM3.png")
+
+
+```
+
+
+### Estructura de Desglose del Trabajo (EDT).
+
+En la estructura de desglose de trabajo para el Proyecto Data Science: Modelo Predictivo de Pesquisa Cardiovascular, las etapas 1 a 4 — resaltadas en verde — constituyen el alcance operativo de este estudio y serán abordadas en su totalidad:
+
+- Etapa 1. Comprensión del negocio
+Definición de objetivos clínicos y administrativos en la Red de Atención Primaria, evaluación del contexto institucional y planificación del proyecto.
+
+- Etapa 2. Comprensión de los datos
+Identificación, recolección y caracterización de las fuentes de información epidemiológica y de salud disponibles.
+
+- Etapa 3. Preparación de los datos
+Limpieza, transformación y estructuración de los registros para su uso en técnicas analíticas.
+
+- Etapa 4. Modelación
+Selección de algoritmos, generación de diseños de experimentación y construcción de modelos predictivos orientados a la detección temprana de riesgo cardiovascular.
+
+Por el contrario, las etapas 5 y 6 — señaladas en rojo — quedan fuera del presente estudio:
+
+- Etapa 5. Evaluación avanzada
+Revisión en profundidad de calidad, validación externa y determinación de pasos de escalamiento.
+
+- Etapa 6. Despliegue operativo
+Planificación de la implementación en entornos hospitalarios o de APS, definición de protocolos de mantenimiento y elaboración de informes para su integración en la gestión asistencial.
+
+La exclusión de estas últimas fases responde a las limitaciones de tiempo y recursos propias del programa de Magíster, así como al hecho de que su ejecución corresponde a la etapa de transición a producción de un modelo en un entorno real de salud.
+
+```{r echo=FALSE, out.width="100%", fig.align="center", fig.cap="Estructura de Desglose del Trabajo, para proyecto de Data Science.)"}
+knitr::include_graphics("EDT_PROYECTO_DATA.SCIENCE_CCM_2025_V4.png")
+
+
+```
+
+
+
+
+# ETAPA 2: Compresión de los datos.
+
+
+## Recopilación de datos iniciales:
+
+Base de Datos de la población en control, en la Comuna de Quellón, con corte a junio 2017, con un total de 2.865 registros y 41 campos y Base de datos EMP del año 2016 y a junio 2017, extraídos del sistema RAYEN (apartada por el Subdepartamento de Tecnología de la Información del Servicio de Salud Chiloé), con un total de 2.436 registros y 68 campos. Registros totales entre ambas bases de datos fueron 5.301.
+
+## Descripción de datos.
+
+Se llegó a la fase de modelado con una matriz depurada que contenía nueve campos predictores. Estos fueron: edad, circunferencia de cintura (CC_CM), presión arterial sistólica, colesterol, talla, presión arterial diastólica, peso, sexo, y tabaquismo. Se dispuso de 3.586 registros, 2.006 correspondientes al grupo que presenta al menos una de las tres patologías estudiadas (Grupo SI) y 1.580 a la categoría que eventualmente no presenta patología (Grupo NO).
+
+La **Variable Objetivo** se definió con la denominación “PVC”, compuesta por dos grupos: GRUPO SI = Grupo de pacientes en control del Programa Cardiovascular, que presenta al menos una de las tres patologías, DM HTA o DLP. GRUPO NO = Grupo de Pacientes EMPA (2016 a junio 2017) y que no están en control en Programa Cardiovascular, al corte de junio del 2017 y, eventualmente, no presenta ninguna de las tres patologías señaladas. Luego, este grupo servirá para poder discriminar y encontrar aquellos patrones en los datos que caracterizan a las personas con algunas de las tres patologías del grupo “SI” y las diferencian de aquellos en el grupo “NO”.
+
+## Exploración de datos.
+
+Se analizara el problema de los Factores de Riesgo Cardiovascular Mayores desde una perspectiva de procesos y se estudiaron las técnicas que permiten descubrir el conocimiento del fenómeno almacenado en las bases de datos de la Población en Control cardiovascular que presenta DM II, HTA o DLP en exámenes de medicina preventiva del adulto (EMPA). Se identificaran patrones contenidos en los datos para determinar las variables predictivas y seleccionar los algoritmos de Machine Learning que se utilizaran en el desarrollo del modelo de pesquiza. Se desarrollara un prototipo funcional del modelo de Machine Learning, finalmente, evaluar la calidad de predicción del prototipo y corregir los posibles errores.
+
+
+### Importación de matriz de datos.
+
+```{r warning=FALSE,message=FALSE}
+
+## Importación de dataframe 
+datos <- read_excel("PVC_CCM.xlsx")
+
+```
+
+
+### Análisis de estructura de matriz datos.
+
+```{r warning=FALSE,message=FALSE}
+glimpse(datos)
+
+```
+
+### Visualización de matriz de datos.
+```{r warning=FALSE,message=FALSE}
+datos <-tibble(datos)
+datos
+
+```
+
+
+
+## Verificación de calidad de datos.
+
+```{r warning=FALSE, message=FALSE}
+# Resumen de estadisticos de variables cuantitativas y categoricas #
+
+skim(datos) 
+
+```
+
+
+
+# ETAPA 3: Preparación de los Datos.
+
+
+## Limpieza de datos
+
+
+### Renombrar variables.
+```{r warning=FALSE,message=FALSE}
+# Renombrar variables, de manera mas compacta, usando dplyr
+
+datos <- datos %>%
+  # Se usa el operador pipe (%>%) para encadenar operaciones sobre el data frame 'datos'
+  rename(
+    EDAD   = EDAD_AÑOS,                    # Renombra la variable 'EDAD_AÑOS' como 'EDAD'
+    PESO   = PESO_KG,                      # Renombra 'PESO_KG' como 'PESO'
+    TALLA  = TALLA_CM,                     # Renombra 'TALLA_CM' como 'TALLA'
+    CC     = CC_CM,                        # Renombra 'CC_CM' como 'CC' (Circunferencia de Cintura)
+    PAS    = PRESION_ARTERIAL_SISTOLICA,   # Renombra 'PRESION_ARTERIAL_SISTOLICA' como 'PAS'
+    PAD    = PRESION_ARTERIAL_DIASTOLICA,  # Renombra 'PRESION_ARTERIAL_DIASTOLICA' como 'PAD'
+    COLTRL = COLESTEROL_TOTAL              # Renombra 'COLESTEROL_TOTAL' como 'COLTRL'
+  )
+
+# Verificar que los nombres de las columnas hayan sido cambiados correctamente
+names(datos)  # Muestra el vector de nombres de columna del data frame 'datos'
+
+```
+
+
+### transformación de variables categóricas a "Factor".
+```{r warning=FALSE, message=FALSE}
+
+## Transformar variables categoricas a factor
+
+datos <- datos %>%
+    mutate(
+       across(
+      where(is.character),  # Selecciona columnas que son de tipo 'character'
+      as.factor             # Convierte esas columnas a tipo 'factor'
+    )
+  )
+
+# Visualizar la estructura del data frame para confirmar los cambios
+glimpse(datos)  # Muestra un resumen de cada columna
+
+
+```
+
+
+
+### Identificación de asociaciones entre variables, y valores atípicos.
+
+A continuación, cinco evidencias clave que aporta la “Matriz de Gráficos según PCV” en relación con la población bajo estudio:
+
+- **Edad significativamente mayor en pacientes con evento cardiovascular (PCV = Sí)**
+Las curvas de densidad de edad (diagonal) muestran un claro desplazamiento hacia rangos superiores en el grupo PCV = Sí, con mediana alrededor de 60–65 años, frente a 40–45 años en el grupo PCV = No. Esto confirma que la edad es un importante factor de riesgo asociado a la aparición de eventos cardiovasculares.
+
+- **Mayor masa corporal en el grupo PCV = Sí**
+En el histograma y densidad de peso, el grupo con PCV presenta una distribución desplazada hacia valores más altos (mediana ≈ 80 kg vs ≈ 70 kg), indicando una mayor prevalencia de exceso de peso u obesidad, condicionante conocido de riesgo cardiovascular.
+
+- **Incremento de la circunferencia de cintura (CC) en pacientes con PCV**
+La densidad de CC evidencia valores medios superiores en PCV = Sí (aprox. 100 cm) comparado con PCV = No (≈ 90 cm). Esta medida de adiposidad central refuerza su vínculo con el riesgo cardiometabólico y la necesidad de intervenciones dirigidas a la reducción de grasa abdominal.
+
+- **Presión arterial sistólica (PAS) más elevada en el grupo PCV = Sí**
+El box-plot y la densidad de PAS revelan una mediana cercana a 140 mmHg en PCV = Sí frente a ≈ 125 mmHg en PCV = No. Este hallazgo subraya la hipertensión sistólica como factor pronóstico primario que debería monitorizarse y controlarse en la Atención Primaria.
+
+- **Concentración de colesterol total más alta en pacientes con PCV**
+La distribución de colesterol total se desplaza hacia la derecha en el grupo PCV = Sí, con un maximo de densidad en torno a 240 mg/dL, mientras que en PCV = No se sitúa cerca de 200 mg/dL. Esto evidencia la hipercolesterolemia como determinante clave en la fisiopatología de la enfermedad cardiovascular y un objetivo prioritario de los programas de prevención.
+
+```{r, warning=FALSE,message=FALSE, results = 'hide', ig.width=12, fig.height=7, out.width="100%", fig.align="center", fig.cap="Resumen de herramientas gráficas e indicadores de correlación de variables en analisis."}
+
+# Crear el gráfico con color por categoría PCV
+
+p <- ggpairs(
+  datos,
+  columns = 1:9,  
+                  
+
+  mapping = aes(color = PCV),  
+
+  # Configura la parte inferior de la matriz: dispersogramas 
+  lower = list(continuous = wrap("points", alpha = 0.6, size = 1)),
+
+  # Parte superior de la matriz: coeficientes de correlación
+  upper = list(continuous = wrap("cor", size = 2.5)),
+
+  # Diagonal: densidades para variables continuas
+  diag = list(continuous = wrap("densityDiag", alpha = 0.5)),
+
+  # Título del gráfico
+  title = "Matriz de Gráficos, según PCV"
+)
+
+# Ajustar tamaño de letra en ejes y título
+p <- p + theme(
+  axis.text.x = element_text(size = 5),     # Texto de eje X
+  axis.text.y = element_text(size = 7),     # Texto de eje Y
+  strip.text = element_text(size = 7),      # Texto de los encabezados de las facetas
+  plot.title = element_text(size = 12, hjust = 0.5)  # Título centrado y más grande
+)
+
+# Mostrar el gráfico
+p
+
+
+```
+
+
+### Tratamiento de datos perdidos (NA) y Atípicos (Outliers).
+
+El *Predictive mean matching* o *emparejamiento predictivo de medias*, calcula el valor previsto de la variable objetivo Y Según el modelo de imputación especificado. Para cada entrada faltante, el método forma un pequeño conjunto de donantes candidatos (normalmente de 3, 5 o 10 miembros) a partir de todos los casos completos cuyos valores predichos se aproximan al valor predicho para la entrada faltante. Se extrae aleatoriamente un donante entre los candidatos y se utiliza su valor observado para reemplazar el valor faltante. Se asume que la distribución de la celda faltante coincide con los datos observados de los donantes candidatos.
+
+El emparejamiento predictivo de medias es un método fácil de usar y versátil. Es bastante robusto a las transformaciones de la variable objetivo, por lo que la imputación registro ( Y )  A menudo produce resultados similares a la imputación exp(Y). El método también permite variables objetivo discretas. Las imputaciones se basan en valores observados en otros lugares, por lo que son realistas. No se producirán imputaciones fuera del rango de datos observados, lo que evita problemas con imputaciones sin sentido (p. ej., altura negativa). El modelo es implícito (Little y Rubin, 2002 ) , lo que significa que no es necesario definir un modelo explícito para la distribución de los valores faltantes (Fuente: https://stefvanbuuren.name/fimd/sec-pmm.html?)
+
+
+
+### Desarrollo de Función para automatizar la Imputación de Nulos e Identificación y Tratamiento de datos Atípicos (*Outliers*).
+
+A continuación se describe la secuencia de tareas realizadas por la función desarrollada, denominada **imputar_completo_con_outliers**:  
+
+- Se identifican y separan las variables numéricas y categóricas del conjunto de datos.
+
+- Se elabora un resumen de valores faltantes (NA) en las variables cuantitativas para evaluar su magnitud.
+
+- Se aplica una imputación inicial de las variables numéricas mediante el método de predicción por correspondencia empírica (pmm) con mice.
+
+- Sobre los datos imputados, se detectan outliers según el criterio de rango intercuartílico (IQR) y se reemplazan por NA.
+
+- Se genera un informe de la cantidad y porcentaje de outliers convertidos en NA por variable.
+
+- Se reconstruye el dataset uniendo las variables numéricas (ahora con NA en outliers) y las variables categóricas originales.
+
+- Se definen métodos de imputación por variable: pmm para numéricas y polinómica/logística para categóricas.
+
+- Se realiza una imputación final conjunta de todas las variables con mice, obteniendo un dataset completo listo para análisis y modelado.
+
+
+Seguidamente se presenta el código de la misma:
+
+
+```{r warning=FALSE,message=FALSE, results = 'hide', ig.width=10, fig.height=7}
+
+imputar_completo_con_outliers <- function(datos) {
+  library(dplyr)
+  library(tidyr)
+  library(mice)
+  library(purrr)
+  library(tibble)
+
+  # 1. Separar variables numéricas y categóricas
+  vars_numericas <- names(datos)[sapply(datos, is.numeric)]
+  vars_categoricas <- names(datos)[!sapply(datos, is.numeric)]
+
+  # 2. Tabla resumen de NA's en variables cuantitativas
+  resumen_na <- datos %>%
+    summarise(across(all_of(vars_numericas), ~ sum(is.na(.)))) %>%
+    pivot_longer(cols = everything(), names_to = "variable", 
+                 values_to = "n_NA") %>%
+    mutate(porc_NA = round(n_NA / nrow(datos) * 100, 2))
+
+  print("Resumen de NA's en variables cuantitativas:")
+  print(resumen_na)
+
+  # 3. Imputación inicial (solo para cuantitativas)
+  set.seed(123)
+  imp1 <- mice(datos[vars_numericas],
+               method = "pmm", m = 1, maxit = 5, print = FALSE)
+  datos_cuant_imputados <- complete(imp1)
+
+  # 4. Reemplazar outliers en cuantitativas por NA
+  datos_outliers_na <- datos_cuant_imputados %>%
+    mutate(across(
+      everything(),
+      ~ {
+        q1 <- quantile(., 0.25, na.rm = TRUE)
+        q3 <- quantile(., 0.75, na.rm = TRUE)
+        iqr <- q3 - q1
+        .[. < (q1 - 1.5 * iqr) | . > (q3 + 1.5 * iqr)] <- NA
+        .
+      }
+    ))
+
+  # 5. Tabla resumen de outliers por variable
+  resumen_outliers <- map_dfr(vars_numericas, function(var) {
+    original <- datos_cuant_imputados[[var]]
+    con_na <- datos_outliers_na[[var]]
+    tibble(variable = var,
+           n_outliers = sum(is.na(con_na) & !is.na(original)),
+           porc_outliers = round(sum(is.na(con_na) & !is.na(original)) 
+                                 / nrow(datos) * 100, 2))
+  })
+
+  print("Resumen de outliers convertidos a NA:")
+  print(resumen_outliers)
+
+  # 6. Reconstruir dataset con categóricas + cuantitativas con outliers NA
+  datos_completo <- bind_cols(
+    datos_outliers_na,
+    datos[vars_categoricas]
+  )
+
+  # 7. Imputación final (categoricas y cuantitativas)
+  metodos <- make.method(datos_completo)
+  metodos[vars_numericas] <- "pmm"
+  metodos[vars_categoricas] <- sapply(
+    datos_completo[vars_categoricas], function(x) {
+    if (n_distinct(x) == 2) "logreg" else "polyreg"
+  })
+
+  set.seed(456)
+  imp2 <- mice(datos_completo, method = metodos, m = 1, maxit = 5, print = FALSE)
+  datos_final <- complete(imp2) %>% as_tibble()
+
+  # Diagnóstico final opcional
+  print("Patrones de NA luego de imputación final:")
+  print(md.pattern(datos_final))
+
+  return(datos_final)
+}
+
+```
+
+
+### Aplicación de la Función para automatizar la Imputacion de Nulos y Identificación y Tratamiento de datos Atípicos (*Outliers*).
+
+```{r }
+
+# Aplicación de la funcion sobre datos.
+datos_final <- imputar_completo_con_outliers(datos)
+
+```
+
+
+
+### Visualización de variables cuantitativas en función de la variable objetivo (PCV), con tratamiento e imputación de nulos y atípicos (*Outliers*).
+
+
+```{r warning=FALSE,message=FALSE, results = 'hide', ig.width=10, fig.height=12, out.width="80%", fig.align="center", fig.cap="Imputación de datos perdidos y datos atípicos (Outliers)"}
+
+variables <- c("EDAD", "PESO", "TALLA", "CC", "PAS", "PAD", "COLTRL")
+plot_list <- list()
+
+# Crear un gráfico por variable
+for (var in variables) {
+  p <- ggplot(datos_final, aes(x = PCV, y = .data[[var]], fill = PCV)) +
+    geom_boxplot(alpha = 0.7, position = position_dodge(width = 0.75)) +
+    labs(
+      title = paste("Distribución de", var),
+      x = "PCV",
+      y = var
+    ) +
+    scale_fill_brewer(palette = "Set2") +  # Puedes elegir otra paleta si prefieres
+    theme_minimal(base_size = 12) +
+    theme(legend.position = "none")  # Oculta leyenda en cada gráfico individual
+
+  plot_list[[var]] <- p
+}
+
+# Combinar en una matriz 4x2 y agregar título general
+combined_plot <- wrap_plots(plot_list, ncol = 2) +
+  plot_annotation(title = "Distribución de variables cuantitativas con tratamiento de imputación de datos.",
+  theme = theme(plot.title = element_text(size = 12, face = "bold", hjust = 0.5)))
+
+# Mostrar
+combined_plot
+
+```
+
+Tras el tratamiento de valores faltantes y atípicos, la distribución de los principales factores de riesgo mantiene patrones claros entre quienes presentan evento cardiovascular (PCV = Sí) y quienes no (PCV = No). Entre las evidencias más relevantes destacan:
+
+**Edad más elevada en PCV = Sí**
+– Mediana de edad ≈ 60 años frente a ≈ 42 años en el grupo sin evento.
+– IQR (55–70) vs (35–50), lo que confirma a la edad como factor de riesgo primordial.
+
+**Mayor índice de adiposidad central (CC)**
+– Mediana de circunferencia de cintura ≈ 105 cm en PCV = Sí vs ≈ 100 cm en PCV = No.
+– Refuerza la asociación entre adiposidad abdominal y riesgo cardiometabólico.
+
+**Presión arterial sistólica (PAS) incrementada**
+– Mediana de PAS ≈ 125 mmHg en PCV = Sí frente a ≈ 120 mmHg en quienes no tuvieron evento.
+– Muestra la persistencia de la hipertensión sistólica como predictor de eventos.
+
+**Peso ligeramente superior en el grupo con evento**
+– Mediana de peso ≈ 78 kg en PCV = Sí vs ≈ 75 kg en PCV = No.
+– A pesar de la imputación y depuración, el exceso de peso se mantiene como cofactor.
+
+Colesterol total menor en PCV = Sí
+– Mediana de colesterol ≈ 190 mg/dL en PCV = Sí vs ≈ 200 mg/dL en PCV = No.
+– Indica posible efecto de intervenciones farmacológicas (estatinas) tras la ocurrencia del evento.
+
+Estos hallazgos subrayan la necesidad de focalizar estrategias de prevención primaria en la población de mayor edad y con marcadores de riesgo (adiposidad central, hipertensión), así como reforzar el seguimiento y adherencia a tratamientos hipolipemiantes en quienes ya han sufrido un evento cardiovascular.
+
+
+
+## Construcción de nuevos datos. 
+
+La incorporación conjunta de IMC, ICT y PAM mejora la sensibilidad y especificidad del modelo de predicción de riesgo cardiovascular al capturar distintos ejes de la fisiopatología:
+
+* Adiposidad general (IMC)
+
+* Obesidad central y carga metabólica (ICT)
+
+* Carga hemodinámica crónica (PAM)
+
+Estos predictores son de bajo costo, fácilmente medibles en todos los niveles de atención (APS, Urgencias, Hospital) y permiten optimizar la gestión de listas de espera, la priorización en pabellones quirúrgicos para intervenciones relacionadas (angioplastias, by‑pass) y la asignación de recursos diagnósticos y terapéuticos en la Red Asistencial. De esta manera, se contribuye a una atención más oportuna y efectiva de la población en control por enfermedades cardiovasculares crónicas.
+
+```{r warning=FALSE,message=FALSE}
+
+datos_final <- datos_final %>%
+  mutate(IMC=PESO/((TALLA/100)^2),   ##Indice de Masa Corporal
+         ICT= CC/TALLA,              ##Indice Cintura Talla
+         PAM= PAS + (2*PAD)/3)       ##Presion Arterial Media
+head(datos_final)
+```
+
+
+## Formateo de datos.
+
+### Partición de datos.
+
+```{r warning=FALSE,message=FALSE}
+set.seed(123)
+# Partición estratificada 80% entrenamiento / 20% test
+indices <- createDataPartition(datos_final$PCV, p = 0.8, list = FALSE)
+train_df <- datos_final[indices, ]
+test_df  <- datos_final[-indices, ]
+
+```
+
+
+### Escalado y centrado de datos de variables cuantitativas.
+
+```{r warning=FALSE,message=FALSE}
+# Ejemplo de escalado y centrado previo
+pp <- preProcess(train_df[, -which(names(train_df)=="PCV")], 
+                 method = c("center", "scale"))
+train_pp <- predict(pp, train_df)
+test_pp  <- predict(pp, test_df)
+
+```
+
+### Creación de variables *Dummy* para atributos categóricos.
+```{r warning=FALSE,message=FALSE}
+# Identificar variables categóricas en el conjunto de entrenamiento
+cat_vars <- names(train_pp)[ sapply(train_pp, function(x) is.factor(x) || is.character(x)) ]
+cat_vars
+
+dv_all <- dummyVars(
+  formula  = ~ ., 
+  data     = train_pp, 
+  fullRank = TRUE,
+  sep      = "_", 
+)
+
+# Aplicar la transformación a train_pp y test_pp
+train_dummy <- predict(dv_all, newdata = train_pp)
+test_dummy  <- predict(dv_all, newdata = test_pp)
+
+# Convertir matrices a data.frames
+train_dummy <- as.data.frame(train_dummy)
+test_dummy  <- as.data.frame(test_dummy)
+
+
+```
+
+# ETAPA 4: Modelado
+
+##Selección de Algoritmos
+Para seleccionar el modelo más adecuado entre **regresión logística binaria** y **XGBoost** en un problema de clasificación de riesgo cardiovascular, es esencial comparar aspectos de interpretabilidad, rendimiento predictivo, robustez de los datos, requerimientos computacionales y aplicabilidad en el contexto de salud pública. La regresión logística ofrece una implementación sencilla y coeficientes directamente interpretables como odds ratio, lo cual facilita la adopción de resultados por parte de clínicos y gestores sanitarios. Por su parte, XGBoost incorpora métodos de ensamblado de árboles con regularización, que suelen superar en exactitud a los modelos lineales y manejan automáticamente valores faltantes y atípicos, aunque a costa de mayor complejidad computacional.
+
+
+## Generación de Diseño de Comprobación.
+
+Un diseño de comprobación basado en un split estratificado permite estimar la generalización de los modelos en datos no vistos, evitando sesgos de sobreajuste. Al reservar un conjunto de prueba independiente y usar una semilla fija se garantiza la reproducibilidad y la imparcialidad en la comparación entre regresión logística y XGBoost. La proporción recomendada de 80 % para entrenamiento y 20 % para prueba equilibra la variabilidad de la estimación y la cantidad de datos disponibles para ajuste de hiperparámetros mediante validación cruzada interna. Este enfoque aísla claramente la fase de evaluación final, mejorando la transparencia y confiabilidad de la selección de modelo en contextos de salud pública.
+
+
+## Generación y Evaluación de Modelos de Machine Learning.
+
+### Regresión logistica lineal.
+
+```{r warning=FALSE,message=FALSE}
+
+##Formulación de modelo inicial utilizando todas las variables
+
+log_1<-glm(PCV_SI~.,data = train_dummy, family="binomial")
+summary(log_1)
+
+```
+
+Nuestro modelo ha obtenido un AIC de 2108.6. El AIC cuantifica la cantidad relativa de información que se pierde al ajustar un modelo: cuanto menor es esa pérdida, mayor la calidad del ajuste. Muchas de las variables que hemos incluido no resultan significativas (p-value > 0,05) y, por tanto, deben descartarse. Para optimizar la selección de variables y reducir el AIC, podemos emplear la función stepAIC() de la librería MASS, que elimina automáticamente las variables no informativas y retorna el modelo con el menor AIC posible.
+
+```{r warning=FALSE,message=FALSE}
+ #Selección del modelo
+ stepAIC(log_1,trace=T)
+
+```
+
+El modelo de **regresión logística** identificó la edad, la presión arterial sistólica y el índice cintura–talla como predictores significativamente asociados al riesgo de evento cardiovascular, mientras que la dirección inversa de circunferencia de cintura, presión diastólica, colesterol total e IMC sugiere colinealidad y efectos de intervenciones terapéuticas posteriores. La elevada magnitud del ICT refuerza su valor como marcador de adiposidad central en evaluaciones clínicas. Estos resultados respaldan la implementación de estrategias preventivas en la Red APS centradas en el control de hipertensión y adiposidad en población de mayor edad. Se recomienda profundizar en el análisis de multicolinealidad y validar externamente el modelo para facilitar su adopción en la práctica asistencial.
+
+
+```{r warning=FALSE,message=FALSE}
+
+log_final <- glm(
+  formula = PCV_SI ~ EDAD + PESO + CC + PAS + PAD + COLTRL + 
+    IMC + ICT, family = "binomial", data = train_dummy)
+summary(log_final)
+
+
+```
+
+
+```{r}
+# Extraer OR y sus intervalos de confianza al 95%
+or_broom <- tidy(
+  log_final,
+  exponentiate = TRUE,    # transforma coeficientes a OR (exp(beta))
+  conf.int     = TRUE     # calcula IC al 95% para los coeficientes
+)
+
+# Ver resultados
+print(or_broom)
+
+
+```
+
+
+Con el objetivo de evaluar la capacidad de generalización del modelo frente a datos no vistos, empleamos el conjunto de validación test_t y fijamos un umbral de decisión en 0,50. De este modo, podemos analizar su desempeño diagnóstico al clasificar nuevos casos según su probabilidad estimada.
+
+```{r warning=FALSE,message=FALSE}
+
+# Realizar predicciones de probabilidad
+predict_log_final <- predict(log_final, 
+                             newdata = test_dummy, 
+                             type = "response")
+
+# Convertir las probabilidades en clases (0 o 1) usando umbral 0.5
+prediccion_05 <- ifelse(predict_log_final > 0.5, 1, 0)
+
+# Ver primeras predicciones
+head(prediccion_05)
+
+```
+
+
+```{r warning=FALSE,message=FALSE}
+
+confusionMatrix(
+  reference = factor(test_dummy$PCV_SI, levels = c(0, 1)),
+  data = factor(prediccion_05, levels = c(0, 1)),
+  positive = "1"
+)
+
+```
+
+El modelo alcanza una exactitud del 79,5 % (IC 95 % 76,1–82,8) y un índice Kappa de 0,59, lo que indica concordancia moderada. La sensibilidad (78,9 %) y la especificidad (80,1 %) están equilibradas, con una precisión predictiva positiva del 78,7 % y negativa del 80,3 %, reflejando buena capacidad para identificar tanto casos como controles. La tasa de detección (38,1 %) y la prevalencia de predicción (48,5 %) confirman un ajuste adecuado al balance de clases (prevalencia real 48,3 %). En conjunto, el desempeño es sólido para su aplicación en estrategias de detección de riesgo cardiovascular en Atención Primaria.
+
+
+```{r warning=FALSE,message=FALSE}
+ #Curva ROC
+ pr_05 <- prediction(prediccion_05, test_dummy$PCV_SI)
+ perf_log_05 <- performance(pr_05, measure = "tpr", x.measure = "fpr")
+ plot(perf_log_05, col = "Red", main = "Curva ROC modelo log_2")
+ #Diagonal o línea discriminante
+ abline(a=0,b=1,lwd=2,lty=2,col="black")
+
+
+```
+
+
+```{r warning=FALSE,message=FALSE}
+
+#AUC con umbral 0.50
+ auc(test_dummy$PCV_SI,prediccion_05)
+
+```
+
+
+
+### Métodos de Boosting: XGBoost.
+
+Se extraen las variables dependientes u objetivo de los conjuntos de train y test.
+
+```{r warning=FALSE,message=FALSE}
+
+#Variables dependientes
+ y_train_dummy <- train_dummy$PCV_SI
+ y_test_dummy <- test_dummy$PCV_SI
+
+```
+
+
+```{r warning=FALSE,message=FALSE}
+#Crea matriz de datos solo con variables predictoras
+
+train_dummy_sin_PCV_SI <- train_dummy %>% 
+  mutate(PCV_SI = NULL)
+
+test_dummy_sin_PCV_SI <- test_dummy %>% 
+  mutate(PCV_SI = NULL)
+
+```
+
+
+```{r warning=FALSE,message=FALSE}
+ ## comprobar que ninguna de las variables tenga varianza cero o  próxima a cero.
+ nearZeroVar(train_dummy_sin_PCV_SI, saveMetrics = T)
+
+```
+
+Una vez que todas las variables son numéricas, transformamos el conjunto de datos al formato que acepta el modelo, utilizando la función xgb.DMatrix(), donde indicamos el conjunto de datos transformado en matriz  y la variable dependiente.
+
+```{r warning=FALSE,message=FALSE}
+dtrain_dummy_sin_PCV_SI <- xgb.DMatrix(as.matrix(train_dummy_sin_PCV_SI), 
+                                       label = y_train_dummy)
+dtest_dummy_sin_PCV_SI <- xgb.DMatrix(as.matrix(test_dummy_sin_PCV_SI),
+                                      label = y_test_dummy)
+
+```
+
+
+Lo primero que vamos a hacer es buscar la profundidad óptima con la función expand.grid() de caret,
+manteniendo el resto de parámetros con los valores por defecto.
+
+```{r warning=FALSE,message=FALSE}
+grid <- expand.grid(max_depth = 1:6,
+                    eta = 0.3,
+                    colsample_bytree = 1,
+                    gamma = 0,
+                    subsample = 1,
+                    min_child_weight = 1,
+                    nrounds = 100)
+
+
+
+control <- trainControl(method = "cv",
+                          number = 3)
+
+
+grid_model_depth <- train(x = train_dummy_sin_PCV_SI,
+                          y = factor(y_train_dummy),
+                          trControl = control,
+                          tuneGrid = grid,
+                          method = "xgbTree")
+ 
+grid_model_depth
+
+
+```
+
+Una vez que hemos determinado la profundidad óptima (max_depth=1), podemos modificar nuestra búsqueda para afinar el resto de los hiperparámetros del modelo. En este caso, exploraremos distintos valores de la tasa de aprendizaje (eta) y del porcentaje de observaciones muestreadas por cada árbol durante el entrenamiento (subsample).
+
+
+```{r warning=FALSE,message=FALSE}
+ grid<-expand.grid(max_depth=1,
+                    eta= c(0.025, 0.05,0.1,0.3,0.5),
+                    colsample_bytree =1,
+                    gamma=0,
+                    subsample= c(0.3,0.5,0.8,1),
+                    min_child_weight =1,
+                    nrounds=100)
+ 
+control<-trainControl(method="cv",
+                        number=3)
+
+
+grid_model_eta<-train(x=train_dummy_sin_PCV_SI,
+                      y=factor(y_train_dummy),
+                      trControl=control,
+                      tuneGrid= grid,
+                      method="xgbTree")
+
+grid_model_eta
+
+
+```
+
+Los valores óptimos para los parámetros que hemos indicado son eta = 0.1 y subsample = 0.3. Creamos un modelo con la función xgb.cv(), que nos permite realizar validación cruzada en XGBoost y obtener el número óptimo de iteraciones, utilizando los valores de eta y subsample obtenidos anteriormente.
+
+
+```{r warning=FALSE,message=FALSE}
+parametros<-list(objetive="binary:logistic",
+                    eval_metric="auc",
+                    max_depth=1,
+                    eta=0.1,
+                    subsample=0.3)
+
+
+ model_ini <-xgb.cv(data=dtrain_dummy_sin_PCV_SI,
+                        label=y_train_dummy,
+                        nrounds=1000,
+                        nfold=5,
+                        print_every_n=10,
+                        early_stopping_rounds=50,
+                        params=parametros)
+
+
+
+```
+Se generó un modelo empleando la iteración óptima (101) y los parámetros determinados mediante la función expand.grid().
+
+
+```{r warning=FALSE,message=FALSE}
+model_sub<-xgb.train(data=dtrain_dummy_sin_PCV_SI,
+                      label=y_train_dummy,
+                      nrounds=model_ini$best_iteration,
+                      nfold=5,
+                      print_every_n =10,
+                      early_stopping_rounds=50,
+                      params=parametros,
+                      watchlist=list(val=dtest_dummy_sin_PCV_SI,
+                                     train=dtrain_dummy_sin_PCV_SI))
+
+
+```
+
+Obtenemos que con 101 iteraciones un AUC en train de 88.61% y en el conjunto de validación de 87,91%.
+Es normal conseguir una precisión menor en el conjunto de datos que en el conjunto de entrenamiento, al
+ser observaciones nuevas para el modelo. Buscamos las variables más importantes para el modelo que hemos realizado con la función varImp().
+
+
+```{r warning=FALSE,message=FALSE}
+
+xgb_imp <- xgb.importance(feature_names = colnames(
+  dtrain_dummy_sin_PCV_SI), model = model_sub)
+ xgb.plot.importance(xgb_imp[1:5])
+
+```
+
+
+```{r warning=FALSE,message=FALSE}
+ #Predecimos con el modelo.
+ predict_xgb <- predict(model_sub, dtest_dummy_sin_PCV_SI)
+
+ predict_class <- as.factor(ifelse(predict_xgb > 0.5,1,0))
+ 
+ confusionMatrix(predict_class, factor(y_test_dummy), positive = "1")
+
+
+```
+
+El modelo XGBoost alcanzó una exactitud del 78,6 % (IC 95 %: 75,1–81,8) con un κ de 0,57, lo que indica concordancia moderada. La sensibilidad (77,6 %) y la especificidad (79,4 %) están equilibradas, con valores predictivos positivo y negativo de 77,9 % y 79,2 %, respectivamente. La balanced accuracy de 78,5 % confirma un rendimiento uniforme independientemente del sesgo de clases (prevalencia 48,3 %). Estos indicadores sitúan a XGBoost como un instrumento sólido para la detección temprana de riesgo cardiovascular en la Red APS y el ámbito hospitalario.
+
+
+```{r warning=FALSE,message=FALSE}
+#CurvaROC.
+
+pr_xgb<-prediction(as.numeric(predict_xgb),y_test_dummy)
+
+perf_xgb<-performance(pr_xgb,measure="tpr",x.measure="fpr")
+
+plot(perf_xgb,colorize=T,main="ROC")
+
+
+```
+
+
+```{r warning=FALSE,message=FALSE}
+ #AUCxgb
+ auc(y_test_dummy,as.numeric(predict_xgb))
+
+
+```
+
+# Discusión y Conclusiones.
+
+La comparación de ambos modelos revela un rendimiento global similar, con ventajas diferenciales según el contexto de aplicación. La regresión logística mostró una precisión de clasificación del 79,5 % (IC 95 %: 76,1–82,8), sensibilidad del 78,9 % y especificidad del 80,1 % (umbral 0,50), alcanzando un AUC de 0,7952 . En contraste, XGBoost obtuvo una exactitud de 78,6 % (IC 95 %: 75,1–81,8), sensibilidad del 77,6 %, especificidad del 79,4 %, un índice Kappa de 0,57 y un AUC de validación de 0,8791 . Aunque la diferencia en AUC favorece a XGBoost, ambos modelos presentan un balance adecuado entre tasa de verdaderos positivos y negativos, lo que garantiza su aplicabilidad en la Red Asistencial.
+
+Desde la perspectiva de gestión en la Red APS y niveles hospitalarios del SS Chiloé, la regresión logística aporta interpretabilidad directa: sus coeficientes, transformados en odds ratios, identifican claramente a la edad, presión arterial sistólica e índice cintura–talla como predictores clave . Esto facilita la comunicación con equipos clínicos y la integración en protocolos de tamizaje prehospitalario y evaluación de riesgo cardiovascular en atención primaria. Por su parte, XGBoost, con su capacidad de ensamble y regularización automática, despliega un mayor poder discriminativo —reflejado en un AUC superior— y una robustez natural frente a valores faltantes y atípicos, destacando variables como IMC, PAS, colesterol total, ICT y edad . Sin embargo, su complejidad computacional y la necesidad de técnicas de explicación (por ejemplo, SHAP) exigen infraestructura y personal especializado.
+
+
+# Referencias:
+
+-   Atalah, E., et al. (2003). Prevalencia de factores de riesgo de enfermedad cardiovascular en trabajadores de empresas de servicios. Revista Médica de Chile, 131(2), 123-130. <https://dx.doi.org/10.4067/S0034-98872003000200001>
+
+-   Pedrero, V., et al. (2021). Generalidades del Machine Learning y su aplicación en la gestión sanitaria en Servicios de Urgencia. Revista Médica de Chile, 149(2), 248-254. <https://www.researchgate.net/publication/352105918_2021_Generalidades_Machine_Learning_y_su_aplicacion_en_la_gestion_sanitaria_en_SU>
+
+-   González, C., et al. (2016). Prevalencia de factores de riesgo cardiovascular en trabajadores de salud. Revista Chilena de Nutrición, 43(1), 10-16. <https://dx.doi.org/10.4067/S0717-75182016000100005>
+
+-   Cárdenas, Claudio, González, Sergio, Nahuel, Rosa, Herrera, Pablo, Ferrada, Luis, & Celis, Diego. (2018). Diseño de un modelo predictivo de pesquisa cardiovascular utilizando Árboles de Decisión: propensión de pacientes a presentar diabetes tipo 2, hipertensión arterial o dislipidemia: Estudio piloto, comuna de Quellón, Chiloé. Revista chilena de cardiología, 37(2), 126-133. <https://dx.doi.org/10.4067/S0718-85602018000200126>
+
+
+-  Hernández Rodríguez, José, & Duchi Jimbo, Paola Narcisa. (2015). Índice cintura/talla y su utilidad para detectar riesgo cardiovascular y metabólico. Revista Cubana de Endocrinología, 26(1), 66-76. <http://scielo.sld.cu/scielo.php?script=sci_arttext&pid=S1561-29532015000100006&lng=es&tlng=es>
+
+-  Khan, S. S., Ning, H., Wilkins, J. T., Allen, N., Carnethon, M., Berry, J. D., Sweis, R. N., & Lloyd-Jones, D. M. (2018). Association of Body Mass Index With Lifetime Risk of Cardiovascular Disease and Compression of Morbidity. JAMA cardiology, 3(4), 280–287. <https://doi.org/10.1001/jamacardio.2018.0022>
+
+- https://www.geeksforgeeks.org/advantages-and-disadvantages-of-logistic-regression/ 
+
+- https://xgboosting.com/xgboost-advantages-and-disadvantages-pros-vs-cons/ 
+
+- https://builtin.com/data-science/train-test-split 
+
+- https://machinelearningmastery.com/train-test-split-for-evaluating-machine-learning-algorithms/  
+
+- https://realpython.com/train-test-split-python-data/ 
+
+
+
+
+
+
+
